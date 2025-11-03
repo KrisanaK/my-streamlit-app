@@ -1141,10 +1141,14 @@ def apply_same_mirroring(df):
 
 st.title("TST File Parser")
 
-# --- Supabase client ---
-url = st.secrets["https://lhilkdmdtrcdkoifopkt.supabase.co"]
-key = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoaWxrZG1kdHJjZGtvaWZvcGt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxNDkzNTEsImV4cCI6MjA3NzcyNTM1MX0.LZSpwxZ177iQBI2U2IRKx4g9MCDQrfKN5pUVRHACHBs"]
+# --- Supabase client setup ---
+# Make sure these keys are added in Streamlit Secrets:
+# SUPABASE_URL = "https://lhilkdmdtrcdkoifopkt.supabase.co"
+# SUPABASE_KEY = "<your-supabase-key>"
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
+
 
 VALIDATION_RULES = {
     "Clamp condition are correct": validate_bv_bias2_gt_limith,
@@ -1503,10 +1507,10 @@ with tab3:
             spec_draft = df_tests[~df_tests["ItemName"].isin(exclude_items)].copy()
             spec_draft = spec_draft[["ItemName", "Limit-L", "Limit-H", "Bias1", "Bias2", "RV", "Sequence"]].copy()
 
-            # --- Add blank Seq-prefixed columns ---
+            # --- Add blank Seq-prefixed columns (integers) ---
             seq_cols = ["SeqItemName", "SeqLimit-L", "SeqLimit-H", "SeqBias1", "SeqBias2", "SeqRV"]
             for col in seq_cols:
-                spec_draft[col] = 0  # initialize as int
+                spec_draft[col] = 0
 
             # --- Auto-fill sequence columns ---
             for idx, row in spec_draft.iterrows():
@@ -1539,13 +1543,14 @@ with tab3:
                     edited_spec["UploadTime"] = datetime.datetime.now().isoformat()
                     data = edited_spec.to_dict(orient="records")
 
-                    # Delete old rows
+                    # Delete old rows in paper-spec
                     supabase.table("paper-spec").delete().neq("id", 0).execute()
 
                     # Insert new rows
                     supabase.table("paper-spec").insert(data).execute()
 
                     st.success("✅ Spec table replaced successfully in Supabase!")
+
 
 
 
