@@ -1676,8 +1676,9 @@ with tab3:
             if st.button("Save Spec to Supabase"):
                 if not edited_spec.empty:
                     # Ensure Seq columns are integers
-                    for col in seq_cols:
-                        edited_spec[col] = edited_spec[col].astype(int)
+                    int_seq_cols = ["SeqItemName", "SeqBias1", "SeqRV"]
+                    for col in int_seq_cols:
+                        edited_spec[col] = pd.to_numeric(edited_spec[col], errors="coerce").fillna(0).astype(int)
 
                     edited_spec["UploadTime"] = datetime.datetime.now().isoformat()
                     data = edited_spec.to_dict(orient="records")
@@ -1689,6 +1690,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data).execute()
 
                     st.success("✅ Spec table replaced successfully in Supabase!")
+
 
 
 
