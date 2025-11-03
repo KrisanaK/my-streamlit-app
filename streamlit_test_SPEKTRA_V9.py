@@ -1392,8 +1392,7 @@ with tab1:
                 if label == "Once ALL PASS with expected BinNumber":
                     errors = func(df_tests_processed, df_sorts, expected_bin_number)
                 elif label == "LowVolt's I-Bias not over 20A":
-                    errors = func(df_tests, df_sorts)
-                elif label == "Spec & Bias1-2 Correlation":
+                    errors = func(df_tests, df_sorts)                
                 elif label == "Spec & Bias1-2 Correlation":
                     # Instead of spec_path, pass Supabase client & table
                     errors = func(
@@ -1673,6 +1672,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data).execute()
 
                     st.success("✅ Spec table replaced successfully in Supabase!")
+
 
 
 
