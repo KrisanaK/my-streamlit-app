@@ -1646,6 +1646,23 @@ with tab3:
 
             # --- Add SourceFile column ---
             spec_draft["SourceFile"] = file_name
+            mask = spec_draft["ItemName"].isin(['BVCBO', 'BVCBR', 'BVCBS', 'BVCEO', 'BVCER', 'BVCES', 'BVDG1O','BVDG2O', 'BVDGO', 
+                                                'BVDGS', 'BVDGSS', 'BVDSO', 'BVDSS', 'BVDSX1', 'BVDSX2', 'BVDSX3',                           
+                                                'BVDSXX', 'BVEB', 'BVIN', 'BVOUT', 'BVSG1O', 'BVSG1S', 'BVSG1O', 'BVSG2O',                           
+                                                'BVSGO', 'BVSGS', 'HIDSS', 'HILCBO', 'HILCBR', 'HILCBS', 'HILCEO', 'HILCER',                           
+                                                'HILCES', 'HILEB', 'HVBCBO', 'HVBCBR', 'HVBCBS', 'HVBCEO', 'HVBCER', 'HVBCES',                           
+                                                'HVICBO', 'HVICBR', 'HVICBS', 'HICEO', 'HVICER', 'HVICES', 'HVIR', 'HVVR',                           
+                                                'IBD', 'ICBO', 'ICBR', 'ICBS', 'ICEO', 'ICER', 'ICES', 'IDGO', 'IDRM', 'IDRM2',                           
+                                                'IDRM3', 'IDSO', 'IDSS', 'IDSX1S', 'IDSX2S', 'IDSXX', 'IEB', 'IGG', 'IGSX', 'IR',                            
+                                                'IRGM', 'IRIN', 'IROUT', 'ISG1S', 'ISG2S', 'ISGO', 'ISGS', 'POLA', 'PVCBO',                            
+                                                'PVCEO', 'VDRM', 'VDRM2', 'VDRM3', 'VRGM', 'VRGM2', 'VRGM3', 'VZ', 'ZZ', 'HVBDSO',                           
+                                                'HVBDSS', 'IGN', 'IGR', 'HVBDGO', 'HVBDGS', 'HVIDSO', 'HVIDSS', 'HVIDGO', 'HVDRM',                           
+                                                'HVIDRM', 'PVCES', 'ISG25', 'ISG15', 'BVSG13', 'BVSG15', 'BVSG23', 'BVSG25',                           
+                                                'HVIEB', 'HVBEB', 'VBRDS', 'IFIN', 'IDSS8', 'ISG28', 'BVDSS8', 'IDSX28',                           
+                                                'BVDSS9', 'IOMAX', 'ZZBC', 'IDSXX3', 'VSG2OR', 'VSG2SR', 'IOFF', 'IMIN', 'ZAK',                           
+                                                'VKARH1', 'VKARH2'])
+            spec_draft.loc[mask, "Bias2"] = ""
+            spec_draft.loc[mask, "SeqBias2"] = ""
 
             # --- Editable Spec Draft Table ---
             st.subheader("Spec Draft (Editable)")
@@ -1672,6 +1689,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data).execute()
 
                     st.success("✅ Spec table replaced successfully in Supabase!")
+
 
 
 
