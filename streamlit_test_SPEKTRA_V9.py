@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import re
+from supabase import create_client
+import datetime
+
 
 def calc_si(txt_a: str, txt_b: str, op: str = "/") -> str:
     """
@@ -1138,6 +1141,11 @@ def apply_same_mirroring(df):
 
 st.title("TST File Parser")
 
+# --- Supabase client ---
+url = st.secrets["https://lhilkdmdtrcdkoifopkt.supabase.co"]
+key = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoaWxrZG1kdHJjZGtvaWZvcGt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxNDkzNTEsImV4cCI6MjA3NzcyNTM1MX0.LZSpwxZ177iQBI2U2IRKx4g9MCDQrfKN5pUVRHACHBs"]
+supabase = create_client(url, key)
+
 VALIDATION_RULES = {
     "Clamp condition are correct": validate_bv_bias2_gt_limith,
     "All FailSort are Branch condition": check_cb2_all_B,
@@ -1446,12 +1454,13 @@ with tab3:
     uploaded_spec_file = st.file_uploader("Upload a .tst file", type=["tst"], key="spec")
 
     if uploaded_spec_file:
+        file_name = uploaded_spec_file.name
         data = uploaded_spec_file.read()
-        tests, sorts = parse_tst_data(data)
+        tests, sorts = parse_tst_data(data)  # your parsing function
         df_tests = pd.DataFrame(tests) if tests else None
 
         if df_tests is not None and not df_tests.empty:
-            # --- Replace True/False flags (like in your main loop) ---
+            # --- Convert True/False flags ---
             flag_columns = {
                 "RV": "RV", "AR": "AR", "CP": "CP", "AC": "AC",
                 "Oi": "Oi", "Ai": "Ai", "Di": "Di", "C/B1": "B", "C/B2": "B"
@@ -1463,7 +1472,7 @@ with tab3:
                         lambda x: label if x else ("C" if col in false_x_columns else "")
                     )
 
-            # --- Convert Limit/LimitType ---
+            # --- Convert Limit/LimitType to Limit-L / Limit-H ---
             if "Limit" in df_tests.columns and "LimitType" in df_tests.columns:
                 df_tests["Limit-L"] = df_tests.apply(
                     lambda row: row["Limit"] if row["LimitType"] == "Min" else "", axis=1
@@ -1473,7 +1482,7 @@ with tab3:
                 )
                 df_tests.drop(columns=["Limit", "LimitType"], inplace=True)
 
-            # --- Column order (RV is optional) ---
+            # --- Column ordering ---
             column_order = [
                 "Sequence", "ItemName", "Limit-L", "Limit-H",
                 "Bias1", "Bias2", "TestTime", "C/B1", "PassBranch",
@@ -1482,8 +1491,8 @@ with tab3:
             ]
             df_tests = df_tests[[col for col in column_order if col in df_tests.columns]]
 
-            # --- Show Original Test Data ---
-            st.subheader("Original Test Program")
+            # --- Original Test Data ---
+            st.subheader("Original Test Data")
             base_cols = ["Sequence", "ItemName", "Limit-L", "Limit-H", "Bias1", "Bias2", "RV"]
             tab3_original = df_tests[base_cols].copy()
             tab3_original.reset_index(drop=True, inplace=True)
@@ -1492,49 +1501,52 @@ with tab3:
             # --- Build Spec Draft (exclude SAME, DEF, CONT) ---
             exclude_items = ["SAME", "DEF", "CONT"]
             spec_draft = df_tests[~df_tests["ItemName"].isin(exclude_items)].copy()
-
-            # Keep only relevant spec columns
-            spec_draft = spec_draft[
-                ["ItemName", "Limit-L", "Limit-H", "Bias1", "Bias2", "RV", "Sequence"]
-            ].copy()
+            spec_draft = spec_draft[["ItemName", "Limit-L", "Limit-H", "Bias1", "Bias2", "RV", "Sequence"]].copy()
 
             # --- Add blank Seq-prefixed columns ---
             seq_cols = ["SeqItemName", "SeqLimit-L", "SeqLimit-H", "SeqBias1", "SeqBias2", "SeqRV"]
             for col in seq_cols:
-                spec_draft[col] = ""
+                spec_draft[col] = 0  # initialize as int
 
-            # --- Auto-fill Sequence-based columns ---
+            # --- Auto-fill sequence columns ---
             for idx, row in spec_draft.iterrows():
-                seq = row["Sequence"]
+                seq = int(row["Sequence"])
                 spec_draft.at[idx, "SeqItemName"] = seq
                 spec_draft.at[idx, "SeqBias1"] = seq
                 spec_draft.at[idx, "SeqBias2"] = seq
-                spec_draft.at[idx, "SeqRV"] = seq  # new SeqRV
-                # Leave SeqLimit-L and SeqLimit-H for user editing
+                spec_draft.at[idx, "SeqRV"] = seq
 
             spec_draft.drop(columns=["Sequence"], inplace=True)
+
+            # --- Add SourceFile column ---
+            spec_draft["SourceFile"] = file_name
 
             # --- Editable Spec Draft Table ---
             st.subheader("Spec Draft (Editable)")
             edited_spec = st.data_editor(
                 spec_draft,
                 num_rows="dynamic",
-                use_container_width=True
+                use_container_width=False
             )
 
-            # --- Export Spec Draft ---
-            csv_data = edited_spec.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="📥 Download Spec Draft as CSV",
-                data=csv_data,
-                file_name="spec_draft.csv",
-                mime="text/csv"
-            )
+            # --- Save to Supabase ---
+            if st.button("Save Spec to Supabase"):
+                if not edited_spec.empty:
+                    # Ensure Seq columns are integers
+                    for col in seq_cols:
+                        edited_spec[col] = edited_spec[col].astype(int)
 
-        else:
-            st.warning("⚠️ No valid test data found in the uploaded file.")
-    else:
-        st.info("Please upload a `.tst` file to view spec data.")
+                    edited_spec["UploadTime"] = datetime.datetime.now().isoformat()
+                    data = edited_spec.to_dict(orient="records")
+
+                    # Delete old rows
+                    supabase.table("paper-spec").delete().neq("id", 0).execute()
+
+                    # Insert new rows
+                    supabase.table("paper-spec").insert(data).execute()
+
+                    st.success("✅ Spec table replaced successfully in Supabase!")
+
 
 
 
