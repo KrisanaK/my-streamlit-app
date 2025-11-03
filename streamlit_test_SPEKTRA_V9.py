@@ -1511,12 +1511,13 @@ with tab2:
                     elif label == "LowVolt's I-Bias not over 20A":
                         errors = func(df_tests, df_sorts)
                     elif label == "Spec & Bias1-2 Correlation":
-                        # Build spec path from uploaded tst file
-
-                        spec_filename = uploaded_file.name.replace(".tst", ".csv")
-                        spec_path = f"paper-spec/{spec_filename}"        
-
-                        errors = func(df_tests, spec_path, df_sorts)
+                        # Instead of spec_path, pass Supabase client & table
+                        errors = func(
+                            df_tests,
+                            supabase=supabase,        # Supabase client instance
+                            table_name="paper-spec",  # Your table name
+                            df_sorts=df_sorts
+                        )                         
                     
                     else:
                         errors = func(df_tests_processed, df_sorts)
@@ -1698,6 +1699,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data_to_insert).execute()
 
                     st.success("✅ Spec table replaced successfully in Supabase!")
+
 
 
 
