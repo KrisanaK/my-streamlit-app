@@ -1632,7 +1632,7 @@ with tab3:
             # --- Add blank Seq-prefixed columns (integers) ---
             seq_cols = ["SeqItemName", "SeqLimit-L", "SeqLimit-H", "SeqBias1", "SeqBias2", "SeqRV"]
             for col in seq_cols:
-                spec_draft[col] = 0
+                spec_draft[col] = ""  # leave empty for user input
 
             # --- Auto-fill sequence columns ---
             for idx, row in spec_draft.iterrows():
@@ -1689,6 +1689,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data).execute()
 
                     st.success("✅ Spec table replaced successfully in Supabase!")
+
 
 
 
