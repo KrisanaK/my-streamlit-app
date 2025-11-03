@@ -109,6 +109,127 @@ def filter_spec_columns(df_tests):
     
     return filtered_df
 
+def correlate_spec_with_validspec_supabase(df_tests, supabase, table_name="paper-spec", df_sorts=None):
+    """
+    Correlate Original Test Data (df_tests) with Spec Draft stored in Supabase.
+    Checks Seq-prefixed columns, including RV, and validates limits and biases.
+
+    Args:
+        df_tests (pd.DataFrame): Original test data.
+        supabase: Supabase client (from create_client)
+        table_name (str): Name of the table in Supabase (default: "paper-spec")
+        df_sorts (pd.DataFrame, optional): Sort/extra data, if needed.
+
+    Returns:
+        List[dict]: Validation issues.
+    """
+    df_tests = filter_spec_columns(df_tests)
+
+    # --- Load spec table from Supabase ---
+    try:
+        response = supabase.table(table_name).select("*").execute()
+        if response.data is None:
+            raise ValueError("No data returned from Supabase")
+        valid_spec = pd.DataFrame(response.data)
+    except Exception as e:
+        return [{
+            "ItemName": "",
+            "Parameter": "",
+            "SpecValue": "",
+            "TestValue": "",
+            "Status": "FAIL",
+            "Reason": f"Failed to load spec from Supabase: {e}"
+        }]
+
+    errors = []
+
+    def _to_float(val):
+        if pd.isna(val) or val == '':
+            return np.nan
+        s = str(val).strip().lower().replace(' ', '')
+        multipliers = {'p': 1e-12,'n': 1e-9,'u': 1e-6,'m': 1e-3,'k': 1e3,'meg': 1e6,'g': 1e9}
+        try:
+            for suf, mult in multipliers.items():
+                if s.endswith(suf):
+                    return float(s[:-len(suf)]) * mult
+            return float(s)
+        except:
+            return np.nan
+
+    field_pairs = [
+        ('ItemName', 'SeqItemName'),
+        ('Limit-L', 'SeqLimit-L'),
+        ('Limit-H', 'SeqLimit-H'),
+        ('Bias1', 'SeqBias1'),
+        ('Bias2', 'SeqBias2'),
+        ('RV', 'SeqRV')
+    ]
+
+    for _, spec_row in valid_spec.iterrows():
+        item_name = spec_row.get('ItemName', '')
+        for field, seq_field in field_pairs:
+            seq_value = spec_row.get(seq_field, '')
+            if pd.isna(seq_value) or seq_value == '':
+                continue
+            test_row = df_tests.loc[df_tests['Sequence'] == int(seq_value)]
+            if test_row.empty:
+                errors.append({
+                    "ItemName": item_name,
+                    "Parameter": field,
+                    "SpecValue": spec_row.get(field, ''),
+                    "TestValue": None,
+                    "Status": "FAIL",
+                    "Reason": f"Sequence {seq_value} not found in Original Test Data"
+                })
+                continue
+
+            test_val = test_row[field].values[0] if field in test_row.columns else None
+            spec_val = spec_row.get(field, '')
+
+            if field in ['Limit-L', 'Limit-H']:
+                test_num = _to_float(test_val)
+                spec_num = _to_float(spec_val)
+                if np.isnan(test_num) or np.isnan(spec_num):
+                    continue
+                if field == 'Limit-L' and test_num < spec_num:
+                    errors.append({
+                        "ItemName": item_name,
+                        "Parameter": field,
+                        "SpecValue": spec_val,
+                        "TestValue": test_val,
+                        "Status": "FAIL",
+                        "Reason": f"Lower limit too loose ({test_num} < {spec_num})"
+                    })
+                elif field == 'Limit-H' and test_num > spec_num:
+                    errors.append({
+                        "ItemName": item_name,
+                        "Parameter": field,
+                        "SpecValue": spec_val,
+                        "TestValue": test_val,
+                        "Status": "FAIL",
+                        "Reason": f"Upper limit too loose ({test_num} > {spec_num})"
+                    })
+            else:
+                test_is_empty = pd.isna(test_val) or str(test_val).strip() == ''
+                spec_is_empty = pd.isna(spec_val) or str(spec_val).strip() == ''
+                if test_is_empty and spec_is_empty:
+                    continue
+                test_num = _to_float(test_val)
+                spec_num = _to_float(spec_val)
+                if not np.isnan(test_num) and not np.isnan(spec_num):
+                    if np.isclose(test_num, spec_num, atol=1e-12, rtol=1e-6):
+                        continue
+                if str(test_val).strip().lower() != str(spec_val).strip().lower():
+                    errors.append({
+                        "ItemName": item_name,
+                        "Parameter": field,
+                        "SpecValue": spec_val,
+                        "TestValue": test_val,
+                        "Status": "FAIL",
+                        "Reason": f"Mismatch: expected {spec_val}, got {test_val}"
+                    })
+
+    return errors
 
 
 def correlate_spec_with_validspec(df_tests, spec_path, df_sorts=None):
@@ -1161,7 +1282,7 @@ VALIDATION_RULES = {
     "Once ALL PASS with expected BinNumber": validate_logiccondition_all_pass_once,
     "All FailSort use OR logical": validate_logiccondition_or_except_special,
     "OR logical contain all Test number": validate_or_logic_contains_all_tests,
-    "Spec & Bias1-2 Correlation": correlate_spec_with_validspec,    
+    "Spec & Bias1-2 Correlation": correlate_spec_with_validspec_supabase,    
     "LowVolt's I-Bias not over 20A": validate_bias_lowvolt_for_special_items,
 
     # Add more validation functions here later
@@ -1273,12 +1394,14 @@ with tab1:
                 elif label == "LowVolt's I-Bias not over 20A":
                     errors = func(df_tests, df_sorts)
                 elif label == "Spec & Bias1-2 Correlation":
-                    # Build spec path from uploaded tst file
-
-                    spec_filename = uploaded_file.name.replace(".tst", ".csv")
-                    spec_path = f"paper-spec/{spec_filename}"   
-
-                    errors = func(df_tests, spec_path, df_sorts)
+                elif label == "Spec & Bias1-2 Correlation":
+                    # Instead of spec_path, pass Supabase client & table
+                    errors = func(
+                        df_tests,
+                        supabase=supabase,        # Supabase client instance
+                        table_name="paper-spec",  # Your table name
+                        df_sorts=df_sorts
+                    )                    
                 else:
                     errors = func(df_tests_processed, df_sorts)
 
@@ -1550,6 +1673,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data).execute()
 
                     st.success("✅ Spec table replaced successfully in Supabase!")
+
 
 
 
