@@ -109,28 +109,50 @@ def filter_spec_columns(df_tests):
     
     return filtered_df
 
-def correlate_spec_with_validspec_supabase(df_tests, supabase, table_name="paper-spec", df_sorts=None):
+def correlate_spec_with_validspec_supabase(
+    df_tests,
+    supabase,
+    source_file=None,
+    table_name="paper-spec",
+    df_sorts=None
+):
     """
     Correlate Original Test Data (df_tests) with Spec Draft stored in Supabase.
-    Checks Seq-prefixed columns, including RV, and validates limits and biases.
+    Only uses the spec rows where SourceFile matches the given source_file.
 
     Args:
         df_tests (pd.DataFrame): Original test data.
         supabase: Supabase client (from create_client)
-        table_name (str): Name of the table in Supabase (default: "paper-spec")
+        source_file (str): Name of the source file (e.g. "KGF50N60KDA.tst")
+        table_name (str): Name of the Supabase table (default: "paper-spec")
         df_sorts (pd.DataFrame, optional): Sort/extra data, if needed.
 
     Returns:
         List[dict]: Validation issues.
     """
+
     df_tests = filter_spec_columns(df_tests)
 
-    # --- Load spec table from Supabase ---
+    # --- Validate the source file name ---
+    if not source_file:
+        return [{
+            "ItemName": "",
+            "Parameter": "",
+            "SpecValue": "",
+            "TestValue": "",
+            "Status": "FAIL",
+            "Reason": "No SourceFile provided for correlation."
+        }]
+
+    # --- Load only relevant spec rows from Supabase ---
     try:
-        response = supabase.table(table_name).select("*").execute()
-        if response.data is None:
-            raise ValueError("No data returned from Supabase")
+        response = supabase.table(table_name).select("*").eq("SourceFile", source_file).execute()
+
+        if not response.data or len(response.data) == 0:
+            raise ValueError(f"No spec found in Supabase for SourceFile='{source_file}'")
+
         valid_spec = pd.DataFrame(response.data)
+
     except Exception as e:
         return [{
             "ItemName": "",
@@ -143,11 +165,15 @@ def correlate_spec_with_validspec_supabase(df_tests, supabase, table_name="paper
 
     errors = []
 
+    # --- Helper: convert text/engineering notation to float ---
     def _to_float(val):
-        if pd.isna(val) or val == '':
+        if pd.isna(val) or val == "":
             return np.nan
-        s = str(val).strip().lower().replace(' ', '')
-        multipliers = {'p': 1e-12,'n': 1e-9,'u': 1e-6,'m': 1e-3,'k': 1e3,'meg': 1e6,'g': 1e9}
+        s = str(val).strip().lower().replace(" ", "")
+        multipliers = {
+            "p": 1e-12, "n": 1e-9, "u": 1e-6, "m": 1e-3,
+            "k": 1e3, "meg": 1e6, "g": 1e9
+        }
         try:
             for suf, mult in multipliers.items():
                 if s.endswith(suf):
@@ -156,42 +182,55 @@ def correlate_spec_with_validspec_supabase(df_tests, supabase, table_name="paper
         except:
             return np.nan
 
+    # --- Field mappings between main spec and sequence spec ---
     field_pairs = [
-        ('ItemName', 'SeqItemName'),
-        ('Limit-L', 'SeqLimit-L'),
-        ('Limit-H', 'SeqLimit-H'),
-        ('Bias1', 'SeqBias1'),
-        ('Bias2', 'SeqBias2'),
-        ('RV', 'SeqRV')
+        ("ItemName", "SeqItemName"),
+        ("Limit-L", "SeqLimit-L"),
+        ("Limit-H", "SeqLimit-H"),
+        ("Bias1", "SeqBias1"),
+        ("Bias2", "SeqBias2"),
+        ("RV", "SeqRV"),
     ]
 
+    # --- Main correlation logic ---
     for _, spec_row in valid_spec.iterrows():
-        item_name = spec_row.get('ItemName', '')
+        item_name = spec_row.get("ItemName", "")
+
         for field, seq_field in field_pairs:
-            seq_value = spec_row.get(seq_field, '')
-            if pd.isna(seq_value) or seq_value == '':
+            seq_value = spec_row.get(seq_field, "")
+            if pd.isna(seq_value) or seq_value == "":
                 continue
-            test_row = df_tests.loc[df_tests['Sequence'] == int(seq_value)]
+
+            # Find the matching test row by Sequence
+            try:
+                seq_int = int(seq_value)
+                test_row = df_tests.loc[df_tests["Sequence"] == seq_int]
+            except Exception:
+                continue
+
             if test_row.empty:
                 errors.append({
                     "ItemName": item_name,
                     "Parameter": field,
-                    "SpecValue": spec_row.get(field, ''),
+                    "SpecValue": spec_row.get(field, ""),
                     "TestValue": None,
                     "Status": "FAIL",
-                    "Reason": f"Sequence {seq_value} not found in Original Test Data"
+                    "Reason": f"Sequence {seq_value} not found in test data"
                 })
                 continue
 
             test_val = test_row[field].values[0] if field in test_row.columns else None
-            spec_val = spec_row.get(field, '')
+            spec_val = spec_row.get(field, "")
 
-            if field in ['Limit-L', 'Limit-H']:
+            # --- Numeric comparisons for limits ---
+            if field in ["Limit-L", "Limit-H"]:
                 test_num = _to_float(test_val)
                 spec_num = _to_float(spec_val)
+
                 if np.isnan(test_num) or np.isnan(spec_num):
                     continue
-                if field == 'Limit-L' and test_num < spec_num:
+
+                if field == "Limit-L" and test_num < spec_num:
                     errors.append({
                         "ItemName": item_name,
                         "Parameter": field,
@@ -200,7 +239,7 @@ def correlate_spec_with_validspec_supabase(df_tests, supabase, table_name="paper
                         "Status": "FAIL",
                         "Reason": f"Lower limit too loose ({test_num} < {spec_num})"
                     })
-                elif field == 'Limit-H' and test_num > spec_num:
+                elif field == "Limit-H" and test_num > spec_num:
                     errors.append({
                         "ItemName": item_name,
                         "Parameter": field,
@@ -209,16 +248,24 @@ def correlate_spec_with_validspec_supabase(df_tests, supabase, table_name="paper
                         "Status": "FAIL",
                         "Reason": f"Upper limit too loose ({test_num} > {spec_num})"
                     })
+
+            # --- Other field comparisons (Bias1, Bias2, RV, etc.) ---
             else:
-                test_is_empty = pd.isna(test_val) or str(test_val).strip() == ''
-                spec_is_empty = pd.isna(spec_val) or str(spec_val).strip() == ''
+                test_is_empty = pd.isna(test_val) or str(test_val).strip() == ""
+                spec_is_empty = pd.isna(spec_val) or str(spec_val).strip() == ""
+
                 if test_is_empty and spec_is_empty:
                     continue
+
                 test_num = _to_float(test_val)
                 spec_num = _to_float(spec_val)
+
+                # Compare numerically if possible
                 if not np.isnan(test_num) and not np.isnan(spec_num):
                     if np.isclose(test_num, spec_num, atol=1e-12, rtol=1e-6):
                         continue
+
+                # Otherwise, compare as strings
                 if str(test_val).strip().lower() != str(spec_val).strip().lower():
                     errors.append({
                         "ItemName": item_name,
@@ -230,8 +277,7 @@ def correlate_spec_with_validspec_supabase(df_tests, supabase, table_name="paper
                     })
 
     return errors
-
-
+    
 def correlate_spec_with_validspec(df_tests, spec_path, df_sorts=None):
     """
     Correlate Original Test Data (df_tests) with Spec Draft CSV (spec_path).
@@ -1394,13 +1440,15 @@ with tab1:
                 elif label == "LowVolt's I-Bias not over 20A":
                     errors = func(df_tests, df_sorts)                
                 elif label == "Spec & Bias1-2 Correlation":
-                    # Instead of spec_path, pass Supabase client & table
-                    errors = func(
+                    source_file = uploaded_file.name  # e.g. "KGF50N60KDA.tst"
+                    errors = correlate_spec_with_validspec_supabase(
                         df_tests,
-                        supabase=supabase,        # Supabase client instance
-                        table_name="paper-spec",  # Your table name
+                        supabase=supabase,
+                        source_file=source_file,
+                        table_name="paper-spec",
                         df_sorts=df_sorts
-                    )                    
+                    )
+                    
                 else:
                     errors = func(df_tests_processed, df_sorts)
 
@@ -1704,6 +1752,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data_to_insert).execute()
 
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
+
 
 
 
