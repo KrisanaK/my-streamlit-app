@@ -1674,18 +1674,22 @@ with tab3:
             )
 
             # --- Save to Supabase ---
+            # --- Save to Supabase ---
             if st.button("Save Spec to Supabase"):
                 if not edited_spec.empty:
                     # 1️⃣ Convert only integer Seq columns
                     int_seq_cols = ["SeqItemName", "SeqBias1", "SeqRV"]
                     for col in int_seq_cols:
                         edited_spec[col] = pd.to_numeric(edited_spec[col], errors="coerce").fillna(0).astype(int)
+
                     # 2️⃣ Convert empty strings to None for user-editable fields
                     nullable_cols = ["SeqLimit-L", "SeqLimit-H", "SeqBias2"]
                     for col in nullable_cols:
                         edited_spec[col] = edited_spec[col].replace("", None)
+
                     # 3️⃣ Add upload timestamp
                     edited_spec["UploadTime"] = datetime.datetime.now().isoformat()
+
                     # 4️⃣ Optional: Only include columns that exist in the Supabase table
                     table_cols = [
                         "ItemName", "Limit-L", "Limit-H", "Bias1", "Bias2", "RV",
@@ -1693,12 +1697,15 @@ with tab3:
                         "SeqRV", "SourceFile", "UploadTime"
                     ]
                     data_to_insert = edited_spec[table_cols].to_dict(orient="records")
-        
-                    # 5️⃣ Delete old rows and insert new ones
-                    supabase.table("paper-spec").delete().neq("id", 0).execute()
+
+                    # ✅ FIXED SECTION (replace only same SourceFile)
+                    current_file = edited_spec["SourceFile"].iloc[0]
+                    supabase.table("paper-spec").delete().eq("SourceFile", current_file).execute()
                     supabase.table("paper-spec").insert(data_to_insert).execute()
 
-                    st.success("✅ Spec table replaced successfully in Supabase!")
+                    st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
+
+
 
 
 
