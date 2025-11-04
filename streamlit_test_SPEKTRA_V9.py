@@ -1559,13 +1559,14 @@ with tab2:
                     elif label == "LowVolt's I-Bias not over 20A":
                         errors = func(df_tests, df_sorts)
                     elif label == "Spec & Bias1-2 Correlation":
-                        # Instead of spec_path, pass Supabase client & table
-                        errors = func(
+                        source_file = uploaded_file.name  # e.g. "KGF50N60KDA.tst"
+                        errors = correlate_spec_with_validspec_supabase(
                             df_tests,
-                            supabase=supabase,        # Supabase client instance
-                            table_name="paper-spec",  # Your table name
+                            supabase=supabase,
+                            source_file=source_file,
+                            table_name="paper-spec",
                             df_sorts=df_sorts
-                        )                         
+                        )                       
                     
                     else:
                         errors = func(df_tests_processed, df_sorts)
@@ -1752,6 +1753,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data_to_insert).execute()
 
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
+
 
 
 
