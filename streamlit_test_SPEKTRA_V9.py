@@ -7,9 +7,9 @@ import datetime
 
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Select a SourceFile to view its spec data from Supabase")
+    st.caption("Select a SourceFile to view its specification data from Supabase")
 
-    # --- Get all unique SourceFile names ---
+    # --- Fetch unique SourceFiles ---
     try:
         response = supabase.table("paper-spec").select("SourceFile").execute()
         sourcefiles = sorted({r["SourceFile"] for r in response.data if r.get("SourceFile")}) if response.data else []
@@ -17,7 +17,7 @@ def tab4_view_database():
         st.error(f"🚫 Error fetching SourceFile list: {e}")
         sourcefiles = []
 
-    # --- Dropdown input ---
+    # --- Dropdown selection ---
     sourcefile = st.selectbox("📂 Choose SourceFile:", options=sourcefiles, index=None, placeholder="Type or choose...")
 
     if sourcefile:
@@ -27,16 +27,20 @@ def tab4_view_database():
             if response.data:
                 df = pd.DataFrame(response.data)
 
-                # Sort by UploadTime if available
+                # Sort by time if available
                 if "UploadTime" in df.columns:
                     df["UploadTime"] = pd.to_datetime(df["UploadTime"], errors="coerce")
                     df = df.sort_values("UploadTime", ascending=False)
 
                 st.success(f"✅ Found {len(df)} record(s) for `{sourcefile}`")
 
-                # --- Display table without scrollbars ---
-                # Use st.table() for a static full table (no scrollbars)
-                st.table(df)
+                # --- Display clean interactive table ---
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=500  # adjust height if needed
+                )
 
             else:
                 st.warning(f"⚠️ No records found for `{sourcefile}`")
@@ -1793,6 +1797,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
