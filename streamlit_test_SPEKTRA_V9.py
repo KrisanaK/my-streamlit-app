@@ -5,6 +5,52 @@ import re
 from supabase import create_client
 import datetime
 
+def tab4_view_database():
+    st.markdown("## 🗄️ Paper-Spec Database Viewer")
+    st.caption("Search and view data stored in the `paper-spec` table from Supabase")
+
+    # Input box for SourceFile filter
+    st.markdown("### 🔍 Search by SourceFile")
+    sourcefile = st.text_input("Enter SourceFile name (e.g. `KGF50N60KDA.tst`):", "")
+
+    if st.button("🔎 Search"):
+        if not sourcefile.strip():
+            st.warning("⚠️ Please enter a SourceFile name to search.")
+            return
+
+        try:
+            response = supabase.table("paper-spec").select("*").eq("SourceFile", sourcefile).execute()
+
+            if response.data:
+                df = pd.DataFrame(response.data)
+
+                # Sort by upload time if available
+                if "UploadTime" in df.columns:
+                    df["UploadTime"] = pd.to_datetime(df["UploadTime"], errors="coerce")
+                    df = df.sort_values("UploadTime", ascending=False)
+
+                st.success(f"✅ Found {len(df)} record(s) for `{sourcefile}`")
+                st.dataframe(df, use_container_width=True, hide_index=True)
+            else:
+                st.warning(f"⚠️ No records found for `{sourcefile}`")
+
+        except Exception as e:
+            st.error(f"🚫 Error fetching data from Supabase:\n\n{e}")
+
+    # Optional: divider
+    st.markdown("<hr style='border:1px solid #ddd;'>", unsafe_allow_html=True)
+
+    # Optionally show all data
+    with st.expander("📋 View All Data"):
+        try:
+            all_data = supabase.table("paper-spec").select("*").execute()
+            if all_data.data:
+                df_all = pd.DataFrame(all_data.data)
+                st.dataframe(df_all, use_container_width=True, hide_index=True)
+            else:
+                st.info("ℹ️ No data available in the table.")
+        except Exception as e:
+            st.error(f"🚫 Error loading full table:\n\n{e}")
 
 def calc_si(txt_a: str, txt_b: str, op: str = "/") -> str:
     """
@@ -1348,7 +1394,7 @@ for label, func in VALIDATION_RULES.items():
             )
 
 # === Tabs for Single vs Multiple File Validation ===
-tab1, tab2, tab3 = st.tabs(["📁 Single File Validation", "🗂️ Multiple File Validation", "⚠️ Spec Draft"])
+tab1, tab2, tab3 = st.tabs(["📁 Single File Validation", "🗂️ Multiple File Validation", "⚠️ Spec Draft", "View Spec"])
 
 # ------------------------------------------------------
 # TAB 1: Single File Validation
@@ -1753,6 +1799,8 @@ with tab3:
                     supabase.table("paper-spec").insert(data_to_insert).execute()
 
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
+with tab4:
+    tab4_view_database()
 
 
 
