@@ -10,28 +10,23 @@ import datetime
 # ----------------------------
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Search by SourceFile (auto-refreshes top 50 distinct matches)")
+    st.caption("Search by SourceFile (top 50 matches)")
 
     # --- User input ---
     query = st.text_input("🔍 Type SourceFile name:")
 
     if query:
         try:
-            # ✅ Use SQL-style distinct (no 'distinct=' arg)
+            # Fetch top 50 matching SourceFiles
             response = (
                 supabase.table("paper-spec")
-                .select("distinct SourceFile")   # <- this works in all versions
+                .select("SourceFile")
                 .ilike("SourceFile", f"%{query}%")
                 .limit(50)
                 .execute()
             )
 
-            # --- Extract distinct matches ---
-            matches = sorted([
-                r["SourceFile"]
-                for r in response.data
-                if r.get("SourceFile")
-            ])
+            matches = [r["SourceFile"] for r in response.data if r.get("SourceFile")]
 
             if matches:
                 selected_source = st.selectbox("📂 Matching SourceFiles:", matches, index=0)
@@ -46,7 +41,7 @@ def tab4_view_database():
         st.info("💡 Start typing to search SourceFile...")
         selected_source = None
 
-    # --- Display full table for the chosen SourceFile ---
+    # --- Display table when one is selected ---
     if selected_source:
         try:
             response = (
@@ -1819,6 +1814,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
