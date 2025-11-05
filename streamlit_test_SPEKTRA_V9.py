@@ -7,24 +7,29 @@ import datetime
 
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Search and view data stored in the `paper-spec` table from Supabase")
+    st.caption("Select or search a SourceFile to view its records from Supabase")
 
-    # Input box for SourceFile filter
-    st.markdown("### 🔍 Search by SourceFile")
-    sourcefile = st.text_input("Enter SourceFile name (e.g. `KGF50N60KDA.tst`):", "")
+    # --- Fetch all SourceFile names ---
+    try:
+        response = supabase.table("paper-spec").select("SourceFile").execute()
+        if response.data:
+            sourcefiles = sorted(list({row["SourceFile"] for row in response.data if row["SourceFile"]}))
+        else:
+            sourcefiles = []
+    except Exception as e:
+        st.error(f"🚫 Error fetching SourceFile list: {e}")
+        sourcefiles = []
 
-    if st.button("🔎 Search"):
-        if not sourcefile.strip():
-            st.warning("⚠️ Please enter a SourceFile name to search.")
-            return
+    # --- Input choice with auto-complete ---
+    sourcefile = st.selectbox("📂 Choose SourceFile:", options=sourcefiles, index=None, placeholder="Type or choose...")
 
+    if sourcefile:
         try:
             response = supabase.table("paper-spec").select("*").eq("SourceFile", sourcefile).execute()
 
             if response.data:
                 df = pd.DataFrame(response.data)
 
-                # Sort by upload time if available
                 if "UploadTime" in df.columns:
                     df["UploadTime"] = pd.to_datetime(df["UploadTime"], errors="coerce")
                     df = df.sort_values("UploadTime", ascending=False)
@@ -37,10 +42,7 @@ def tab4_view_database():
         except Exception as e:
             st.error(f"🚫 Error fetching data from Supabase:\n\n{e}")
 
-    # Optional: divider
-    st.markdown("<hr style='border:1px solid #ddd;'>", unsafe_allow_html=True)
-
-    # Optionally show all data
+    # Optional: view all data
     with st.expander("📋 View All Data"):
         try:
             all_data = supabase.table("paper-spec").select("*").execute()
@@ -1394,7 +1396,7 @@ for label, func in VALIDATION_RULES.items():
             )
 
 # === Tabs for Single vs Multiple File Validation ===
-tab1, tab2, tab3, tab4 = st.tabs(["📁 Single File Validation", "🗂️ Multiple File Validation", "⚠️ Spec Draft", "View Spec"])
+tab1, tab2, tab3, tab4 = st.tabs(["📁 Single File Validation", "🗂️ Multiple File Validation", "⚠️ Spec Draft", "🗄️ View Spec"])
 
 # ------------------------------------------------------
 # TAB 1: Single File Validation
@@ -1801,6 +1803,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
