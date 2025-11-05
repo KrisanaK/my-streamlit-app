@@ -10,16 +10,16 @@ import datetime
 # ----------------------------
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Type SourceFile name to search (auto-fill simulation)")
+    st.caption("Type SourceFile name to get suggestions")
 
-    # --- User text input ---
+    # --- User input ---
     query = st.text_input("🔍 SourceFile:")
 
     selected_source = None
 
     if query:
         try:
-            # Fetch top 50 matches from lookup table (lowercase column)
+            # Fetch top 50 matches from lookup table
             response = (
                 supabase.table("sourcefile_list")
                 .select("sourcefile")
@@ -31,9 +31,14 @@ def tab4_view_database():
             matches = [r["sourcefile"] for r in response.data if r.get("sourcefile")]
 
             if matches:
-                # Auto-fill: pick the first match
+                # Show the matches below input
+                st.markdown("**Suggestions:**")
+                for m in matches:
+                    st.markdown(f"- `{m}`")
+
+                # Pick the first match automatically (optional)
                 selected_source = matches[0]
-                st.markdown(f"**Auto-selected:** `{selected_source}`")
+
             else:
                 st.warning("⚠️ No matching SourceFile found.")
 
@@ -43,7 +48,6 @@ def tab4_view_database():
     # --- Display table if a match is found ---
     if selected_source:
         try:
-            # Query main table (uppercase "SourceFile")
             response = (
                 supabase.table("paper-spec")
                 .select("*")
@@ -67,7 +71,7 @@ def tab4_view_database():
         except Exception as e:
             st.error(f"🚫 Error loading data for `{selected_source}`:\n\n{e}")
     else:
-        st.info("💡 Start typing to search SourceFile...")
+        st.info("💡 Start typing to see suggestions...")
 
 def calc_si(txt_a: str, txt_b: str, op: str = "/") -> str:
     """
@@ -1818,6 +1822,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
