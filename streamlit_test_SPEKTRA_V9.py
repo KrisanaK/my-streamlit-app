@@ -10,41 +10,59 @@ import datetime
 # ----------------------------
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Select a SourceFile to display its records")
+    st.caption("Search by SourceFile (auto-refreshes top 50 matches)")
 
-    # --- Fetch unique SourceFile list ---
-    try:
-        response = supabase.table("paper-spec").select("SourceFile").execute()
-        # Get unique non-null SourceFile values
-        sourcefiles = sorted({r["SourceFile"] for r in response.data if r.get("SourceFile")})
-    except Exception as e:
-        st.error(f"🚫 Error fetching SourceFile list: {e}")
-        sourcefiles = []
+    # --- User input ---
+    query = st.text_input("🔍 Type SourceFile name:")
 
-    # --- Show dropdown / auto-complete ---
-    sourcefile = st.selectbox(
-        "📂 Choose SourceFile:",
-        options=sourcefiles,
-        index=None,
-        placeholder="Type or choose a SourceFile..."
-    )
-
-    # --- Display matching records ---
-    if sourcefile:
+    if query:
         try:
-            response = supabase.table("paper-spec").select("*").eq("SourceFile", sourcefile).execute()
+            # 🔎 Fetch top 50 matching SourceFiles (case-insensitive)
+            response = (
+                supabase.table("paper-spec")
+                .select("SourceFile")
+                .ilike("SourceFile", f"%{query}%")
+                .limit(50)
+                .execute()
+            )
+
+            matches = sorted({r["SourceFile"] for r in response.data if r.get("SourceFile")})
+            if matches:
+                selected_source = st.selectbox("📂 Matching SourceFiles:", matches, index=0)
+            else:
+                st.warning("⚠️ No matching SourceFile found.")
+                selected_source = None
+
+        except Exception as e:
+            st.error(f"🚫 Error searching Supabase: {e}")
+            selected_source = None
+    else:
+        st.info("💡 Start typing to search SourceFile...")
+        selected_source = None
+
+    # --- Display data when selected ---
+    if selected_source:
+        try:
+            response = (
+                supabase.table("paper-spec")
+                .select("*")
+                .eq("SourceFile", selected_source)
+                .execute()
+            )
+
             if response.data:
                 df = pd.DataFrame(response.data)
                 if "UploadTime" in df.columns:
                     df["UploadTime"] = pd.to_datetime(df["UploadTime"], errors="coerce")
                     df = df.sort_values("UploadTime", ascending=False)
 
-                st.success(f"✅ Found {len(df)} record(s) for `{sourcefile}`")
+                st.success(f"✅ Showing {len(df)} record(s) for `{selected_source}`")
                 st.dataframe(df, use_container_width=True, hide_index=True, height=500)
             else:
-                st.warning(f"⚠️ No records found for `{sourcefile}`")
+                st.warning(f"⚠️ No records found for `{selected_source}`")
+
         except Exception as e:
-            st.error(f"🚫 Error fetching data from Supabase:\n\n{e}")
+            st.error(f"🚫 Error loading data for `{selected_source}`:\n\n{e}")
 
 def calc_si(txt_a: str, txt_b: str, op: str = "/") -> str:
     """
@@ -1795,6 +1813,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
