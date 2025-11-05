@@ -10,10 +10,12 @@ import datetime
 # ----------------------------
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Search by SourceFile (top 50 matches)")
+    st.caption("Type SourceFile name to search (auto-fill simulation)")
 
-    # --- User input ---
-    query = st.text_input("🔍 Type SourceFile name:")
+    # --- User text input ---
+    query = st.text_input("🔍 SourceFile:")
+
+    selected_source = None
 
     if query:
         try:
@@ -29,19 +31,16 @@ def tab4_view_database():
             matches = [r["sourcefile"] for r in response.data if r.get("sourcefile")]
 
             if matches:
-                selected_source = st.selectbox("📂 Matching SourceFiles:", matches, index=0)
+                # Auto-fill: pick the first match
+                selected_source = matches[0]
+                st.markdown(f"**Auto-selected:** `{selected_source}`")
             else:
                 st.warning("⚠️ No matching SourceFile found.")
-                selected_source = None
 
         except Exception as e:
             st.error(f"🚫 Error searching Supabase:\n\n{e}")
-            selected_source = None
-    else:
-        st.info("💡 Start typing to search SourceFile...")
-        selected_source = None
 
-    # --- Display table when one is selected ---
+    # --- Display table if a match is found ---
     if selected_source:
         try:
             # Query main table (uppercase "SourceFile")
@@ -67,6 +66,8 @@ def tab4_view_database():
 
         except Exception as e:
             st.error(f"🚫 Error loading data for `{selected_source}`:\n\n{e}")
+    else:
+        st.info("💡 Start typing to search SourceFile...")
 
 def calc_si(txt_a: str, txt_b: str, op: str = "/") -> str:
     """
@@ -1817,6 +1818,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
