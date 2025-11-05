@@ -17,16 +17,16 @@ def tab4_view_database():
 
     if query:
         try:
-            # Fetch top 50 matching SourceFiles
+            # Fetch top 50 matches from lookup table (lowercase column)
             response = (
-                supabase.table("paper-spec")
-                .select("SourceFile")
-                .ilike("SourceFile", f"%{query}%")
+                supabase.table("sourcefile_list")
+                .select("sourcefile")
+                .ilike("sourcefile", f"%{query}%")
                 .limit(50)
                 .execute()
             )
 
-            matches = [r["SourceFile"] for r in response.data if r.get("SourceFile")]
+            matches = [r["sourcefile"] for r in response.data if r.get("sourcefile")]
 
             if matches:
                 selected_source = st.selectbox("📂 Matching SourceFiles:", matches, index=0)
@@ -44,6 +44,7 @@ def tab4_view_database():
     # --- Display table when one is selected ---
     if selected_source:
         try:
+            # Query main table (uppercase "SourceFile")
             response = (
                 supabase.table("paper-spec")
                 .select("*")
@@ -53,6 +54,8 @@ def tab4_view_database():
 
             if response.data:
                 df = pd.DataFrame(response.data)
+
+                # Convert UploadTime to datetime and sort descending
                 if "UploadTime" in df.columns:
                     df["UploadTime"] = pd.to_datetime(df["UploadTime"], errors="coerce")
                     df = df.sort_values("UploadTime", ascending=False)
@@ -1814,6 +1817,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
