@@ -1390,7 +1390,7 @@ for label, func in VALIDATION_RULES.items():
             )
 
 # === Tabs for Single vs Multiple File Validation ===
-tab1, tab2, tab3, tab4 = st.tabs(["📁 Single File Validation", "🗂️ Multiple File Validation", "⚠️ Spec Draft", "🗄️ View Spec"])
+tab1, tab2, tab3, tab4 = st.tabs(["📁 Single File Validation", "🔍 Multiple File Validation", "⚠️ Spec Draft", "🗄️ View Spec"])
 
 # ------------------------------------------------------
 # TAB 1: Single File Validation
@@ -1797,6 +1797,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
