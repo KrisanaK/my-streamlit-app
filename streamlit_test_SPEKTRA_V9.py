@@ -7,20 +7,17 @@ import datetime
 
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Select or search a SourceFile to view its records from Supabase")
+    st.caption("Select a SourceFile to view its spec data from Supabase")
 
-    # --- Fetch all SourceFile names ---
+    # --- Get all unique SourceFile names ---
     try:
         response = supabase.table("paper-spec").select("SourceFile").execute()
-        if response.data:
-            sourcefiles = sorted(list({row["SourceFile"] for row in response.data if row["SourceFile"]}))
-        else:
-            sourcefiles = []
+        sourcefiles = sorted({r["SourceFile"] for r in response.data if r.get("SourceFile")}) if response.data else []
     except Exception as e:
         st.error(f"🚫 Error fetching SourceFile list: {e}")
         sourcefiles = []
 
-    # --- Input choice with auto-complete ---
+    # --- Dropdown input ---
     sourcefile = st.selectbox("📂 Choose SourceFile:", options=sourcefiles, index=None, placeholder="Type or choose...")
 
     if sourcefile:
@@ -30,29 +27,22 @@ def tab4_view_database():
             if response.data:
                 df = pd.DataFrame(response.data)
 
+                # Sort by UploadTime if available
                 if "UploadTime" in df.columns:
                     df["UploadTime"] = pd.to_datetime(df["UploadTime"], errors="coerce")
                     df = df.sort_values("UploadTime", ascending=False)
 
                 st.success(f"✅ Found {len(df)} record(s) for `{sourcefile}`")
-                st.dataframe(df, use_container_width=True, hide_index=True)
+
+                # --- Display table without scrollbars ---
+                # Use st.table() for a static full table (no scrollbars)
+                st.table(df)
+
             else:
                 st.warning(f"⚠️ No records found for `{sourcefile}`")
 
         except Exception as e:
             st.error(f"🚫 Error fetching data from Supabase:\n\n{e}")
-
-    # Optional: view all data
-    with st.expander("📋 View All Data"):
-        try:
-            all_data = supabase.table("paper-spec").select("*").execute()
-            if all_data.data:
-                df_all = pd.DataFrame(all_data.data)
-                st.dataframe(df_all, use_container_width=True, hide_index=True)
-            else:
-                st.info("ℹ️ No data available in the table.")
-        except Exception as e:
-            st.error(f"🚫 Error loading full table:\n\n{e}")
 
 def calc_si(txt_a: str, txt_b: str, op: str = "/") -> str:
     """
@@ -1803,6 +1793,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
