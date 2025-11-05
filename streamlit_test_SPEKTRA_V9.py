@@ -1311,7 +1311,7 @@ st.title("TST File Parser")
 # --- Supabase client setup ---
 # Make sure these keys are added in Streamlit Secrets:
 # SUPABASE_URL = "https://lhilkdmdtrcdkoifopkt.supabase.co"
-# SUPABASE_KEY = "<your-supabase-key>"
+# SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoaWxrZG1kdHJjZGtvaWZvcGt0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxNDkzNTEsImV4cCI6MjA3NzcyNTM1MX0.LZSpwxZ177iQBI2U2IRKx4g9MCDQrfKN5pUVRHACHBs"
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase = create_client(url, key)
@@ -1753,6 +1753,7 @@ with tab3:
                     supabase.table("paper-spec").insert(data_to_insert).execute()
 
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
+
 
 
 
