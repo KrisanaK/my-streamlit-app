@@ -10,68 +10,66 @@ import datetime
 # ----------------------------
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Type SourceFile name to get suggestions")
+    st.caption("Type part of SourceFile to see suggestions and view spec data")
 
-    # --- User input ---
-    query = st.text_input("🔍 SourceFile:")
+    # --- User text input ---
+    query = st.text_input("🔍 Type SourceFile:")
 
     selected_source = None
 
     if query:
         try:
-            # Fetch top 50 matches from lookup table
+            # Fetch matching SourceFiles dynamically (limit 50)
             response = (
-                supabase.table("sourcefile_list")
-                .select("sourcefile")
-                .ilike("sourcefile", f"%{query}%")
+                supabase.table("paper-spec")
+                .select("SourceFile")
+                .ilike("SourceFile", f"%{query}%")
                 .limit(50)
                 .execute()
             )
 
-            matches = [r["sourcefile"] for r in response.data if r.get("sourcefile")]
+            matches = sorted({r["SourceFile"] for r in response.data if r.get("SourceFile")})
 
             if matches:
-                # Show the matches below input
+                # Show suggestions
                 st.markdown("**Suggestions:**")
                 for m in matches:
                     st.markdown(f"- `{m}`")
 
-                # Pick the first match automatically (optional)
+                # Let’s pick the **first match** automatically
                 selected_source = matches[0]
 
             else:
                 st.warning("⚠️ No matching SourceFile found.")
 
         except Exception as e:
-            st.error(f"🚫 Error searching Supabase:\n\n{e}")
+            st.error(f"🚫 Error fetching SourceFiles:\n\n{e}")
 
-    # --- Display table if a match is found ---
+    # --- Display the table if a match is selected ---
     if selected_source:
         try:
-            response = (
-                supabase.table("paper-spec")
-                .select("*")
-                .eq("SourceFile", selected_source)
-                .execute()
-            )
+            response = supabase.table("paper-spec").select("*").eq("SourceFile", selected_source).execute()
 
             if response.data:
                 df = pd.DataFrame(response.data)
 
-                # Convert UploadTime to datetime and sort descending
+                # Sort by UploadTime if available
                 if "UploadTime" in df.columns:
                     df["UploadTime"] = pd.to_datetime(df["UploadTime"], errors="coerce")
                     df = df.sort_values("UploadTime", ascending=False)
 
-                st.success(f"✅ Showing {len(df)} record(s) for `{selected_source}`")
+                st.success(f"✅ Found {len(df)} record(s) for `{selected_source}`")
                 st.dataframe(df, use_container_width=True, hide_index=True, height=500)
+
             else:
                 st.warning(f"⚠️ No records found for `{selected_source}`")
 
         except Exception as e:
-            st.error(f"🚫 Error loading data for `{selected_source}`:\n\n{e}")
+            st.error(f"🚫 Error fetching data from Supabase:\n\n{e}")
+
     else:
-        st.info("💡 Start typing to see suggestions...")
+        st.info("💡 Start typing to see SourceFile suggestions...")
+
 
 def calc_si(txt_a: str, txt_b: str, op: str = "/") -> str:
     """
@@ -1822,6 +1820,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
