@@ -10,23 +10,29 @@ import datetime
 # ----------------------------
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Search by SourceFile (auto-refreshes with top 50 distinct matches)")
+    st.caption("Search by SourceFile (auto-refreshes top 50 distinct matches)")
 
     # --- User input ---
     query = st.text_input("🔍 Type SourceFile name:")
 
     if query:
         try:
-            # 🔎 Fetch distinct top 50 matches
+            # ✅ Use SQL-style distinct (no 'distinct=' arg)
             response = (
                 supabase.table("paper-spec")
-                .select("SourceFile", distinct=True)
+                .select("distinct SourceFile")   # <- this works in all versions
                 .ilike("SourceFile", f"%{query}%")
                 .limit(50)
                 .execute()
             )
 
-            matches = sorted([r["SourceFile"] for r in response.data if r.get("SourceFile")])
+            # --- Extract distinct matches ---
+            matches = sorted([
+                r["SourceFile"]
+                for r in response.data
+                if r.get("SourceFile")
+            ])
+
             if matches:
                 selected_source = st.selectbox("📂 Matching SourceFiles:", matches, index=0)
             else:
@@ -34,13 +40,13 @@ def tab4_view_database():
                 selected_source = None
 
         except Exception as e:
-            st.error(f"🚫 Error searching Supabase: {e}")
+            st.error(f"🚫 Error searching Supabase:\n\n{e}")
             selected_source = None
     else:
         st.info("💡 Start typing to search SourceFile...")
         selected_source = None
 
-    # --- Display table when one is selected ---
+    # --- Display full table for the chosen SourceFile ---
     if selected_source:
         try:
             response = (
@@ -1813,6 +1819,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
