@@ -4,6 +4,8 @@ import numpy as np
 import re
 from supabase import create_client
 import datetime
+from datetime import datetime
+import matplotlib.pyplot as plt
 
 # ----------------------------
 # Tab 4: View database (RLS off)
@@ -1451,7 +1453,7 @@ for label, func in VALIDATION_RULES.items():
             )
 
 # === Tabs for Single vs Multiple File Validation ===
-tab1, tab2, tab3, tab4 = st.tabs(["📁 Single File Validation", "🔍 Multiple File Validation", "⚠️ Spec Draft", "🗄️ View Spec"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📁 Single File Validation", "🔍 Multiple File Validation", "⚠️ Spec Draft", "🗄️ View Spec", "📊 Dashboard"])
 
 # ------------------------------------------------------
 # TAB 1: Single File Validation
@@ -1573,7 +1575,36 @@ with tab1:
                 hide_index=True,
                 height=len(summary_df) * 35 + 40  # auto height per row
             )
+            # Determine overall validation result
+            overall_status = "PASS" if all(row["Status"] == "✅ PASS" for row in summary_data) else "FAIL"
 
+            # Prepare data for Supabase
+            source_file_name = uploaded_file.name
+            current_time = datetime.utcnow().isoformat()  # UTC timestamp
+
+            # Insert or update the record in Supabase
+            try:
+                # Check if record already exists
+                existing = supabase.table("sourcefile_list").select("sourcefile").eq("sourcefile", source_file_name).execute()
+    
+                if existing.data:
+                    # Update existing record
+                    supabase.table("sourcefile_list").update({
+                        "ValidResult": overall_status,
+                        "CheckDate": current_time
+                    }).eq("sourcefile", source_file_name).execute()
+                else:
+                    # Insert new record
+                    supabase.table("sourcefile_list").insert({
+                        "sourcefile": source_file_name,
+                        "ValidResult": overall_status,
+                        "CheckDate": current_time
+                    }).execute()
+    
+                st.success(f"✅ Validation result saved to Supabase: {overall_status}")
+
+            except Exception as e:
+                st.error(f"⚠️ Failed to save to Supabase: {e}")
 
             # Details
             for label, errors in all_errors.items():
@@ -1686,7 +1717,37 @@ with tab2:
 
                 file_results[uploaded_file.name]["all_errors"] = all_errors
                 overall_summary.extend(file_results[uploaded_file.name]["summary_data"])
+                # Determine overall status for this file
+                summary_data = file_results[uploaded_file.name]["summary_data"]
+                overall_status = "PASS" if all(row["Status"] == "✅ PASS" for row in summary_data) else "FAIL"
 
+                # Prepare data for Supabase
+                source_file_name = uploaded_file.name
+                current_time = datetime.utcnow().isoformat()
+
+                # Insert or update the record in Supabase
+                try:
+                    existing = supabase.table("sourcefile_list").select("sourcefile").eq("sourcefile", source_file_name).execute()
+    
+                    if existing.data:
+                        # Update existing record
+                        supabase.table("sourcefile_list").update({
+                            "ValidResult": overall_status,
+                            "CheckDate": current_time
+                        }).eq("sourcefile", source_file_name).execute()
+                    else:
+                        # Insert new record
+                        supabase.table("sourcefile_list").insert({
+                            "sourcefile": source_file_name,
+                            "ValidResult": overall_status,
+                            "CheckDate": current_time
+                        }).execute()
+    
+                    st.success(f"✅ {source_file_name}: validation result saved to Supabase: {overall_status}")
+
+                except Exception as e:
+                    st.error(f"⚠️ {source_file_name}: failed to save to Supabase: {e}")
+    
         # === Display Overall Summary First ===
         st.markdown("## 🧾 Overall Summary (All Files)")
         overall_df = pd.DataFrame(overall_summary)
@@ -1858,6 +1919,78 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+with tab5:
+    st.header("Validation Dashboard")
+
+    # Fetch data from Supabase
+    try:
+        data = supabase.table("sourcefile_list").select("*").execute()
+        df = pd.DataFrame(data.data)
+
+        if df.empty:
+            st.info("No validation records found in Supabase.")
+        else:
+            # Ensure proper columns exist
+            for col in ["sourcefile", "Package", "ValidResult", "CheckDate"]:
+                if col not in df.columns:
+                    df[col] = None
+
+            # Convert CheckDate to datetime
+            df["CheckDate"] = pd.to_datetime(df["CheckDate"])
+
+            # === Overall summary table ===
+            st.subheader("✅ Validation Summary by Package")
+            package_summary = df.groupby("Package")["ValidResult"].value_counts().unstack(fill_value=0)
+            st.dataframe(package_summary)
+
+            # === Mini pie charts per package ===
+            # === Mini pie charts per package ===
+            st.subheader("📊 Mini Pie Charts per Package")
+            packages = df["Package"].dropna().unique()
+            cols_per_row = 3  # number of charts per row
+
+            for i in range(0, len(packages), cols_per_row):
+                cols = st.columns(cols_per_row)
+                for j, pkg in enumerate(packages[i:i+cols_per_row]):
+                    pkg_df = df[df["Package"] == pkg]
+                    counts = pkg_df["ValidResult"].value_counts()
+        
+                    # Function to show quantity instead of percentage
+                    def show_count(pct, allvals):
+                        absolute = int(round(pct/100.*sum(allvals)))
+                        return str(absolute) if absolute > 0 else ''
+
+                    fig, ax = plt.subplots(figsize=(2, 2))  # small size
+                    ax.pie(
+                        counts,
+                        labels=None,  # hide labels for mini charts
+                        autopct=lambda pct: show_count(pct, counts),
+                        startangle=90,
+                        colors=["#4CAF50", "#F44336"]  # green=PASS, red=FAIL
+                    )
+                    ax.set_title(f"{pkg}\nTotal: {len(pkg_df)}", fontsize=10)  # show total files
+                    ax.axis("equal")
+                    cols[j].pyplot(fig)
+
+
+            # === List files that FAILED ===
+            st.subheader("⚠️ Files that Failed Validation")
+            failed_files = df[df["ValidResult"] == "FAIL"]
+            if not failed_files.empty:
+                st.dataframe(failed_files[["sourcefile", "Package", "CheckDate"]])
+            else:
+                st.success("All files passed validation ✅")
+
+    except Exception as e:
+        st.error(f"Failed to load dashboard data from Supabase: {e}")
+
+
+
+
+
+
+
+
 
 
 
