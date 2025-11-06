@@ -4,6 +4,7 @@ import numpy as np
 import re
 from supabase import create_client
 import datetime
+from datetime import datetime
 
 # ----------------------------
 # Tab 4: View database (RLS off)
@@ -1887,6 +1888,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
