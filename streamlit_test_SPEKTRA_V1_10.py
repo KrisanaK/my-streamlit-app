@@ -1919,7 +1919,7 @@ with tab3:
 with tab4:
     tab4_view_database()
 with tab5:
-    st.header("Validation Dashboard")
+    st.header("Validation Dashboard by Package")
 
     # Fetch data from Supabase
     try:
@@ -1938,14 +1938,31 @@ with tab5:
             df["CheckDate"] = pd.to_datetime(df["CheckDate"])
 
             # === Group by Package and summary counts ===
-            package_summary = df.groupby("Package")["ValidResult"].value_counts().unstack(fill_value=0)
             st.subheader("✅ Validation Summary by Package")
+            package_summary = df.groupby("Package")["ValidResult"].value_counts().unstack(fill_value=0)
             st.dataframe(package_summary)
 
-            # Optional: Pie chart for overall PASS/FAIL
-            st.subheader("Overall PASS/FAIL")
-            pass_fail_counts = df["ValidResult"].value_counts()
-            st.bar_chart(pass_fail_counts)
+            # === Pie chart per package ===
+            st.subheader("📊 PASS/FAIL Distribution per Package")
+            packages = df["Package"].dropna().unique()
+            for pkg in packages:
+                pkg_df = df[df["Package"] == pkg]
+                counts = pkg_df["ValidResult"].value_counts()
+                st.markdown(f"**Package:** {pkg}")
+                st.write(counts)  # optional, show raw counts
+                st.pyplot(
+                    fig=plt.figure(figsize=(4,4))
+                )
+                fig, ax = plt.subplots()
+                ax.pie(
+                    counts,
+                    labels=counts.index,
+                    autopct="%1.1f%%",
+                    startangle=90,
+                    colors=["#4CAF50", "#F44336"]  # green for PASS, red for FAIL
+                )
+                ax.axis("equal")
+                st.pyplot(fig)
 
             # === List files that FAILED ===
             st.subheader("⚠️ Files that Failed Validation")
@@ -1956,7 +1973,8 @@ with tab5:
                 st.success("All files passed validation ✅")
 
     except Exception as e:
-        st.error(f"Failed to load dashboard data from Supabase: {e}")    
+        st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
