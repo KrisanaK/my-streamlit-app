@@ -1920,7 +1920,7 @@ with tab3:
 with tab4:
     tab4_view_database()
 with tab5:
-    st.header("Validation Dashboard by Package (Mini Charts)")
+    st.header("Validation Dashboard")
 
     # Fetch data from Supabase
     try:
@@ -1983,6 +1983,7 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
