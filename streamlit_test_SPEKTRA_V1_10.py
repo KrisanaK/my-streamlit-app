@@ -5,6 +5,7 @@ import re
 from supabase import create_client
 import datetime
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 # ----------------------------
 # Tab 4: View database (RLS off)
@@ -1974,6 +1975,7 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
