@@ -1716,7 +1716,37 @@ with tab2:
 
                 file_results[uploaded_file.name]["all_errors"] = all_errors
                 overall_summary.extend(file_results[uploaded_file.name]["summary_data"])
+                # Determine overall status for this file
+                summary_data = file_results[uploaded_file.name]["summary_data"]
+                overall_status = "PASS" if all(row["Status"] == "✅ PASS" for row in summary_data) else "FAIL"
 
+                # Prepare data for Supabase
+                source_file_name = uploaded_file.name
+                current_time = datetime.utcnow().isoformat()
+
+                # Insert or update the record in Supabase
+                try:
+                    existing = supabase.table("sourcefile_list").select("sourcefile").eq("sourcefile", source_file_name).execute()
+    
+                    if existing.data:
+                        # Update existing record
+                        supabase.table("sourcefile_list").update({
+                            "ValidResult": overall_status,
+                            "CheckDate": current_time
+                        }).eq("sourcefile", source_file_name).execute()
+                    else:
+                        # Insert new record
+                        supabase.table("sourcefile_list").insert({
+                            "sourcefile": source_file_name,
+                            "ValidResult": overall_status,
+                            "CheckDate": current_time
+                        }).execute()
+    
+                    st.success(f"✅ {source_file_name}: validation result saved to Supabase: {overall_status}")
+
+                except Exception as e:
+                    st.error(f"⚠️ {source_file_name}: failed to save to Supabase: {e}")
+    
         # === Display Overall Summary First ===
         st.markdown("## 🧾 Overall Summary (All Files)")
         overall_df = pd.DataFrame(overall_summary)
@@ -1888,6 +1918,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
