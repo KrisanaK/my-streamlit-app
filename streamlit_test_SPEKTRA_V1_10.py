@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import re
 from supabase import create_client
-import datetime
+# import datetime
 from datetime import datetime
 import matplotlib.pyplot as plt
 
@@ -1887,7 +1887,6 @@ with tab3:
             )
 
             # --- Save to Supabase ---
-            # --- Save to Supabase ---
             if st.button("Save Spec to Supabase"):
                 if not edited_spec.empty:
                     # 1️⃣ Convert only integer Seq columns
@@ -1901,7 +1900,7 @@ with tab3:
                         edited_spec[col] = edited_spec[col].replace("", None)
 
                     # 3️⃣ Add upload timestamp
-                    edited_spec["UploadTime"] = datetime.datetime.now().isoformat()
+                    edited_spec["UploadTime"] = datetime.now().isoformat()
 
                     # 4️⃣ Optional: Only include columns that exist in the Supabase table
                     table_cols = [
@@ -1939,13 +1938,13 @@ with tab5:
             df["CheckDate"] = pd.to_datetime(df["CheckDate"])
 
             # === Overall summary table ===
-            st.subheader("✅ Validation Summary by Package")
+            st.subheader("✅ Validation Summary")
             package_summary = df.groupby("Package")["ValidResult"].value_counts().unstack(fill_value=0)
             st.dataframe(package_summary)
 
             # === Mini pie charts per package ===
             # === Mini pie charts per package ===
-            st.subheader("📊 Mini Pie Charts per Package")
+            st.subheader("📊 Mini Pie Charts")
             packages = df["Package"].dropna().unique()
             cols_per_row = 3  # number of charts per row
 
@@ -1983,6 +1982,9 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
+
+
 
 
 
