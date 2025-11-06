@@ -1887,7 +1887,6 @@ with tab3:
             )
 
             # --- Save to Supabase ---
-            # --- Save to Supabase ---
             if st.button("Save Spec to Supabase"):
                 if not edited_spec.empty:
                     # 1️⃣ Convert only integer Seq columns
@@ -1939,13 +1938,13 @@ with tab5:
             df["CheckDate"] = pd.to_datetime(df["CheckDate"])
 
             # === Overall summary table ===
-            st.subheader("✅ Validation Summary by Package")
+            st.subheader("✅ Validation Summary")
             package_summary = df.groupby("Package")["ValidResult"].value_counts().unstack(fill_value=0)
             st.dataframe(package_summary)
 
             # === Mini pie charts per package ===
             # === Mini pie charts per package ===
-            st.subheader("📊 Mini Pie Charts per Package")
+            st.subheader("📊 Mini Pie Charts")
             packages = df["Package"].dropna().unique()
             cols_per_row = 3  # number of charts per row
 
@@ -1983,6 +1982,7 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
