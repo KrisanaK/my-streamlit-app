@@ -1944,25 +1944,34 @@ with tab5:
             st.dataframe(package_summary)
 
             # === Mini pie charts per package ===
+            # === Mini pie charts per package ===
             st.subheader("📊 Mini Pie Charts per Package")
             packages = df["Package"].dropna().unique()
             cols_per_row = 3  # number of charts per row
+
             for i in range(0, len(packages), cols_per_row):
                 cols = st.columns(cols_per_row)
                 for j, pkg in enumerate(packages[i:i+cols_per_row]):
                     pkg_df = df[df["Package"] == pkg]
                     counts = pkg_df["ValidResult"].value_counts()
+        
+                    # Function to show quantity instead of percentage
+                    def show_count(pct, allvals):
+                        absolute = int(round(pct/100.*sum(allvals)))
+                        return str(absolute) if absolute > 0 else ''
+
                     fig, ax = plt.subplots(figsize=(2, 2))  # small size
                     ax.pie(
                         counts,
                         labels=None,  # hide labels for mini charts
-                        autopct=lambda p: f'{p:.0f}%' if p > 0 else '',
+                        autopct=lambda pct: show_count(pct, counts),
                         startangle=90,
                         colors=["#4CAF50", "#F44336"]  # green=PASS, red=FAIL
                     )
-                    ax.set_title(pkg, fontsize=10)
+                    ax.set_title(f"{pkg}\nTotal: {len(pkg_df)}", fontsize=10)  # show total files
                     ax.axis("equal")
                     cols[j].pyplot(fig)
+
 
             # === List files that FAILED ===
             st.subheader("⚠️ Files that Failed Validation")
@@ -1974,6 +1983,7 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
