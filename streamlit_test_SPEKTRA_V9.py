@@ -10,18 +10,48 @@ import datetime
 # ----------------------------
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Select a SourceFile from the list (from sourcefile_list) to view its specification data")
+    st.caption("Select a Package first, then a SourceFile to view its specification data.")
 
-    # --- Fetch SourceFile list from lookup table ---
+    # --- Fetch distinct Package list ---
     try:
-        response = supabase.table("sourcefile_list").select("sourcefile").order("sourcefile", desc=False).execute()
-        sourcefiles = [r["sourcefile"] for r in response.data if r.get("sourcefile")]
+        package_response = (
+            supabase.table("sourcefile_list")
+            .select("Package")
+            .order("Package", desc=False)
+            .execute()
+        )
+        packages = sorted(list({r["Package"] for r in package_response.data if r.get("Package")}))
     except Exception as e:
-        st.error(f"🚫 Error fetching sourcefile list: {e}")
-        sourcefiles = []
+        st.error(f"🚫 Error fetching Package list: {e}")
+        packages = []
 
-    # --- Dropdown selection ---
-    sourcefile = st.selectbox("📂 Choose SourceFile:", options=sourcefiles, index=None, placeholder="Select or type to search...")
+    # --- First dropdown: Package selection ---
+    package = st.selectbox("📦 Choose Package:", options=packages, index=None, placeholder="Select a Package...")
+
+    # --- Fetch SourceFile list filtered by Package ---
+    sourcefiles = []
+    if package:
+        try:
+            response = (
+                supabase.table("sourcefile_list")
+                .select("sourcefile")
+                .eq("Package", package)
+                .order("sourcefile", desc=False)
+                .execute()
+            )
+            sourcefiles = [r["sourcefile"] for r in response.data if r.get("sourcefile")]
+        except Exception as e:
+            st.error(f"🚫 Error fetching SourceFile list: {e}")
+            sourcefiles = []
+
+    # --- Second dropdown: SourceFile selection ---
+    sourcefile = st.selectbox(
+        "📂 Choose SourceFile:",
+        options=sourcefiles,
+        index=None,
+        placeholder="Select or type to search...",
+        disabled=not package
+    )
 
     # --- Display data if a SourceFile is selected ---
     if sourcefile:
@@ -43,7 +73,6 @@ def tab4_view_database():
 
                 st.success(f"✅ Found {len(df)} record(s) for `{sourcefile}`")
                 st.dataframe(df, use_container_width=True, hide_index=True, height=500)
-
             else:
                 st.warning(f"⚠️ No records found for `{sourcefile}`")
 
@@ -51,6 +80,7 @@ def tab4_view_database():
             st.error(f"🚫 Error fetching data from Supabase:\n\n{e}")
     else:
         st.info("💡 Please select a SourceFile to view its data.")
+
 
 
 def calc_si(txt_a: str, txt_b: str, op: str = "/") -> str:
@@ -1802,6 +1832,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
