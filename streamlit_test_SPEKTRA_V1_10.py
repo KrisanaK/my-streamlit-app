@@ -1920,7 +1920,7 @@ with tab3:
 with tab4:
     tab4_view_database()
 with tab5:
-    st.header("Validation Dashboard by Package")
+    st.header("Validation Dashboard by Package (Mini Charts)")
 
     # Fetch data from Supabase
     try:
@@ -1938,32 +1938,31 @@ with tab5:
             # Convert CheckDate to datetime
             df["CheckDate"] = pd.to_datetime(df["CheckDate"])
 
-            # === Group by Package and summary counts ===
+            # === Overall summary table ===
             st.subheader("✅ Validation Summary by Package")
             package_summary = df.groupby("Package")["ValidResult"].value_counts().unstack(fill_value=0)
             st.dataframe(package_summary)
 
-            # === Pie chart per package ===
-            st.subheader("📊 PASS/FAIL Distribution per Package")
+            # === Mini pie charts per package ===
+            st.subheader("📊 Mini Pie Charts per Package")
             packages = df["Package"].dropna().unique()
-            for pkg in packages:
-                pkg_df = df[df["Package"] == pkg]
-                counts = pkg_df["ValidResult"].value_counts()
-                st.markdown(f"**Package:** {pkg}")
-                st.write(counts)  # optional, show raw counts
-                st.pyplot(
-                    fig=plt.figure(figsize=(4,4))
-                )
-                fig, ax = plt.subplots()
-                ax.pie(
-                    counts,
-                    labels=counts.index,
-                    autopct="%1.1f%%",
-                    startangle=90,
-                    colors=["#4CAF50", "#F44336"]  # green for PASS, red for FAIL
-                )
-                ax.axis("equal")
-                st.pyplot(fig)
+            cols_per_row = 3  # number of charts per row
+            for i in range(0, len(packages), cols_per_row):
+                cols = st.columns(cols_per_row)
+                for j, pkg in enumerate(packages[i:i+cols_per_row]):
+                    pkg_df = df[df["Package"] == pkg]
+                    counts = pkg_df["ValidResult"].value_counts()
+                    fig, ax = plt.subplots(figsize=(2, 2))  # small size
+                    ax.pie(
+                        counts,
+                        labels=None,  # hide labels for mini charts
+                        autopct=lambda p: f'{p:.0f}%' if p > 0 else '',
+                        startangle=90,
+                        colors=["#4CAF50", "#F44336"]  # green=PASS, red=FAIL
+                    )
+                    ax.set_title(pkg, fontsize=10)
+                    ax.axis("equal")
+                    cols[j].pyplot(fig)
 
             # === List files that FAILED ===
             st.subheader("⚠️ Files that Failed Validation")
@@ -1975,6 +1974,7 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
