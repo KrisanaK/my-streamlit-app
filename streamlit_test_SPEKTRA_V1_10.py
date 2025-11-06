@@ -1452,7 +1452,7 @@ for label, func in VALIDATION_RULES.items():
             )
 
 # === Tabs for Single vs Multiple File Validation ===
-tab1, tab2, tab3, tab4 = st.tabs(["📁 Single File Validation", "🔍 Multiple File Validation", "⚠️ Spec Draft", "🗄️ View Spec"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📁 Single File Validation", "🔍 Multiple File Validation", "⚠️ Spec Draft", "🗄️ View Spec", "📊 Dashboard"])
 
 # ------------------------------------------------------
 # TAB 1: Single File Validation
@@ -1918,6 +1918,46 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+with tab5:
+    st.header("Validation Dashboard")
+
+    # Fetch data from Supabase
+    try:
+        data = supabase.table("sourcefile_list").select("*").execute()
+        df = pd.DataFrame(data.data)
+
+        if df.empty:
+            st.info("No validation records found in Supabase.")
+        else:
+            # Ensure proper columns exist
+            for col in ["sourcefile", "Package", "ValidResult", "CheckDate"]:
+                if col not in df.columns:
+                    df[col] = None
+
+            # Convert CheckDate to datetime
+            df["CheckDate"] = pd.to_datetime(df["CheckDate"])
+
+            # === Group by Package and summary counts ===
+            package_summary = df.groupby("Package")["ValidResult"].value_counts().unstack(fill_value=0)
+            st.subheader("✅ Validation Summary by Package")
+            st.dataframe(package_summary)
+
+            # Optional: Pie chart for overall PASS/FAIL
+            st.subheader("Overall PASS/FAIL")
+            pass_fail_counts = df["ValidResult"].value_counts()
+            st.bar_chart(pass_fail_counts)
+
+            # === List files that FAILED ===
+            st.subheader("⚠️ Files that Failed Validation")
+            failed_files = df[df["ValidResult"] == "FAIL"]
+            if not failed_files.empty:
+                st.dataframe(failed_files[["sourcefile", "Package", "CheckDate"]])
+            else:
+                st.success("All files passed validation ✅")
+
+    except Exception as e:
+        st.error(f"Failed to load dashboard data from Supabase: {e}")    
+
 
 
 
