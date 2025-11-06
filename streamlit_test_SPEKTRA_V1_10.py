@@ -1573,7 +1573,36 @@ with tab1:
                 hide_index=True,
                 height=len(summary_df) * 35 + 40  # auto height per row
             )
+            # Determine overall validation result
+            overall_status = "PASS" if all(row["Status"] == "✅ PASS" for row in summary_data) else "FAIL"
 
+            # Prepare data for Supabase
+            source_file_name = uploaded_file.name
+            current_time = datetime.utcnow().isoformat()  # UTC timestamp
+
+            # Insert or update the record in Supabase
+            try:
+                # Check if record already exists
+                existing = supabase.table("sourcefile_list").select("sourcefile").eq("sourcefile", source_file_name).execute()
+    
+                if existing.data:
+                    # Update existing record
+                    supabase.table("sourcefile_list").update({
+                        "ValidResult": overall_status,
+                        "CheckDate": current_time
+                    }).eq("sourcefile", source_file_name).execute()
+                else:
+                    # Insert new record
+                    supabase.table("sourcefile_list").insert({
+                        "sourcefile": source_file_name,
+                        "ValidResult": overall_status,
+                        "CheckDate": current_time
+                    }).execute()
+    
+                st.success(f"✅ Validation result saved to Supabase: {overall_status}")
+
+            except Exception as e:
+                st.error(f"⚠️ Failed to save to Supabase: {e}")
 
             # Details
             for label, errors in all_errors.items():
@@ -1858,6 +1887,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
