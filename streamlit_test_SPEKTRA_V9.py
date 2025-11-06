@@ -10,23 +10,48 @@ import datetime
 # ----------------------------
 def tab4_view_database():
     st.markdown("## 🗄️ Paper-Spec Database Viewer")
-    st.caption("Select a Package first, then a SourceFile to view its specification data.")
+    st.caption("Select a Group, then a Package, and finally a SourceFile to view its specification data.")
 
-    # --- Fetch distinct Package list ---
+    # --- Fetch distinct Group list ---
     try:
-        package_response = (
+        group_response = (
             supabase.table("sourcefile_list")
-            .select("Package")
-            .order("Package", desc=False)
+            .select("Group")
+            .order("Group", desc=False)
             .execute()
         )
-        packages = sorted(list({r["Package"] for r in package_response.data if r.get("Package")}))
+        groups = sorted(list({r["Group"] for r in group_response.data if r.get("Group")}))
     except Exception as e:
-        st.error(f"🚫 Error fetching Package list: {e}")
-        packages = []
+        st.error(f"🚫 Error fetching Group list: {e}")
+        groups = []
 
-    # --- First dropdown: Package selection ---
-    package = st.selectbox("📦 Choose Package:", options=packages, index=None, placeholder="Select a Package...")
+    # --- First dropdown: Group selection ---
+    group = st.selectbox("🗂️ Choose Group:", options=groups, index=None, placeholder="Select a Group...")
+
+    # --- Fetch Package list filtered by Group ---
+    packages = []
+    if group:
+        try:
+            package_response = (
+                supabase.table("sourcefile_list")
+                .select("Package")
+                .eq("Group", group)
+                .order("Package", desc=False)
+                .execute()
+            )
+            packages = sorted(list({r["Package"] for r in package_response.data if r.get("Package")}))
+        except Exception as e:
+            st.error(f"🚫 Error fetching Package list: {e}")
+            packages = []
+
+    # --- Second dropdown: Package selection ---
+    package = st.selectbox(
+        "📦 Choose Package:",
+        options=packages,
+        index=None,
+        placeholder="Select a Package...",
+        disabled=not group
+    )
 
     # --- Fetch SourceFile list filtered by Package ---
     sourcefiles = []
@@ -44,7 +69,7 @@ def tab4_view_database():
             st.error(f"🚫 Error fetching SourceFile list: {e}")
             sourcefiles = []
 
-    # --- Second dropdown: SourceFile selection ---
+    # --- Third dropdown: SourceFile selection ---
     sourcefile = st.selectbox(
         "📂 Choose SourceFile:",
         options=sourcefiles,
@@ -80,6 +105,7 @@ def tab4_view_database():
             st.error(f"🚫 Error fetching data from Supabase:\n\n{e}")
     else:
         st.info("💡 Please select a SourceFile to view its data.")
+
 
 
 
@@ -1832,6 +1858,7 @@ with tab3:
                     st.success(f"✅ Spec for '{current_file}' uploaded (old entries replaced if existed)!")
 with tab4:
     tab4_view_database()
+
 
 
 
