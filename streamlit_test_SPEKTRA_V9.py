@@ -1900,7 +1900,7 @@ with tab3:
                         edited_spec[col] = edited_spec[col].replace("", None)
 
                     # 3️⃣ Add upload timestamp
-                    edited_spec["UploadTime"] = datetime.datetime.now().isoformat()
+                    edited_spec["UploadTime"] = datetime.now().isoformat()
 
                     # 4️⃣ Optional: Only include columns that exist in the Supabase table
                     table_cols = [
@@ -1982,6 +1982,7 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
