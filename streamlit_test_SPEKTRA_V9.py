@@ -1411,7 +1411,7 @@ def apply_same_mirroring(df):
 
     return df
 
-st.title("SPEKTRA & STA2050 TST File Parser")
+st.title("TST File Parser")
 
 # --- Supabase client setup ---
 # Make sure these keys are added in Streamlit Secrets:
@@ -1982,6 +1982,7 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
