@@ -1412,7 +1412,7 @@ def apply_same_mirroring(df):
     return df
 
 st.title("TST File Parser")
-
+st.set_page_config(layout="wide") 
 # --- Supabase client setup ---
 # Make sure these keys are added in Streamlit Secrets:
 # SUPABASE_URL = "https://lhilkdmdtrcdkoifopkt.supabase.co"
@@ -1982,6 +1982,7 @@ with tab5:
 
     except Exception as e:
         st.error(f"Failed to load dashboard data from Supabase: {e}")
+
 
 
 
