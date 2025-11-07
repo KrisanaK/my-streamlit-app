@@ -3,6 +3,3 @@ pandas
 numpy
 supabase
 matplotlib
-pillow
-pyzxing
-opencv-python
