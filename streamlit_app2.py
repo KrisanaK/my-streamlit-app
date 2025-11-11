@@ -7,51 +7,17 @@ import os
 # 🔹 Decode Functions
 # ===============================
 
-def decode_test_plan(content, filename):
+def decode_mtm_file(uploaded_file):
     """
-    Decode the test plan portion of an .mtm file into a pandas DataFrame.
+    Decode an uploaded .mtm file into:
+      - df_test: DataFrame of test plan
+      - df_sort: DataFrame of sort plan
     """
+    filename = uploaded_file.name
+    content = uploaded_file.read().decode("latin-1").splitlines()
+
     test_rows = []
-    is_bin = False
-
-    for line in content:
-        line = line.strip()
-        if line == "= TEST BIN DATA =":
-            is_bin = True
-            continue
-        elif line == "= END DC BIN DATA =":
-            is_bin = False
-            continue
-        elif line.startswith("=") or not line:
-            continue
-
-        if not is_bin:
-            fields = [f.strip() for f in line.split('^')]
-            fields.insert(0, filename)
-            test_rows.append(fields)
-
-    if not test_rows:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(test_rows)
-    columns = [
-        'Filename', 'NO', 'ITEM', 'Unknown_3', 'Code', 'Min', 'Min_Unit', 'Max',
-        'Max_Unit', 'Sort', 'Condition_Sort', 'Unknown_11', 'Bias1', 'Bias1_Unit',
-        'Bias2', 'Bias2_Unit', 'Bias3', 'Bias3_Unit', 'Test_Time', 'Test_Time_Unit',
-        'RV', 'Unknown_21', 'CP', 'AR', 'SKIP', 'BVR', 'VP', 'INT'
-    ]
-    while len(columns) < df.shape[1]:
-        columns.append(f"Unknown_{len(columns)}")
-    df.columns = columns
-
-    return df
-
-
-def decode_sort_plan(content, filename):
-    """
-    Decode the sort plan portion of an .mtm file into list of (filename, line) tuples.
-    """
-    bin_rows = []
+    sort_rows = []
     is_bin = False
 
     for line in content:
@@ -66,10 +32,53 @@ def decode_sort_plan(content, filename):
             continue
 
         if is_bin:
-            bin_rows.append((filename, line))
+            # Parse sort plan line dynamically
+            multi_word_tokens = {'ALL PASS': 'ALL_PASS', 'BIN OUT': 'BIN_OUT', 'BIN IN': 'BIN_IN'}
+            prefix, item = (line.split('^', 1) + [""])[:2]
+            item = item.strip()
+            for full, token in multi_word_tokens.items():
+                prefix = prefix.replace(full, token)
+            tokens = prefix.strip().split()
+            tokens = [t.replace('_', ' ') if t in multi_word_tokens.values() else t for t in tokens]
+            if len(tokens) >= 3:
+                bin_no, result, logic, *codes = tokens
+                sort_rows.append([filename, bin_no, result, logic] + codes + [item])
+        else:
+            fields = [f.strip() for f in line.split('^')]
+            fields.insert(0, filename)
+            test_rows.append(fields)
 
-    return bin_rows
+    # Build df_test
+    if test_rows:
+        df_test = pd.DataFrame(test_rows)
+        columns = [
+            'Filename', 'NO', 'ITEM', 'Unknown_3', 'Code', 'Min', 'Min_Unit', 'Max',
+            'Max_Unit', 'Sort', 'Condition_Sort', 'Unknown_11', 'Bias1', 'Bias1_Unit',
+            'Bias2', 'Bias2_Unit', 'Bias3', 'Bias3_Unit', 'Test_Time', 'Test_Time_Unit',
+            'RV', 'Unknown_21', 'CP', 'AR', 'SKIP', 'BVR', 'VP', 'INT'
+        ]
+        while len(columns) < df_test.shape[1]:
+            columns.append(f"Unknown_{len(columns)}")
+        df_test.columns = columns
+    else:
+        df_test = pd.DataFrame()
 
+    # Build df_sort
+    if sort_rows:
+        max_codes = max(len(r) - 5 for r in sort_rows)  # Filename + Bin + Result + Logic + Item
+        base_cols = ['Filename', 'Bin', 'Result', 'Logic']
+        code_cols = [f"Code_{i}" for i in range(max_codes)]
+        final_cols = base_cols + code_cols + ['Item']
+        padded_rows = []
+        for r in sort_rows:
+            codes = r[4:-1]
+            padded_codes = codes + [''] * (max_codes - len(codes))
+            padded_rows.append(r[:4] + padded_codes + [r[-1]])
+        df_sort = pd.DataFrame(padded_rows, columns=final_cols)
+    else:
+        df_sort = pd.DataFrame()
+
+    return df_test, df_sort
 
 # ===============================
 # 🔹 Validation & Helper Functions
@@ -116,43 +125,6 @@ def validate_against_spec(df_test, product_spec_df, filename):
                 )
 
     return errors
-
-
-def parse_sort_line_dynamic(line):
-    try:
-        if '^' in line:
-            prefix, item = line.split('^', 1)
-            item = item.strip()
-        else:
-            prefix = line.strip()
-            item = ""
-
-        multi_word_tokens = {
-            'ALL PASS': 'ALL_PASS',
-            'BIN OUT': 'BIN_OUT',
-            'BIN IN': 'BIN_IN',
-        }
-        for full, token in multi_word_tokens.items():
-            prefix = prefix.replace(full, token)
-
-        tokens = prefix.strip().split()
-        tokens = [
-            token.replace('_', ' ') if token in multi_word_tokens.values() else token
-            for token in tokens
-        ]
-
-        if len(tokens) < 3:
-            return []
-
-        bin_no = tokens[0]
-        result = tokens[1]
-        logic = tokens[2]
-        codes = tokens[3:]
-
-        return [bin_no, result, logic] + codes + [item]
-    except Exception:
-        return []
-
 
 def validate_sort_plan(bin_lines, required_bin=None, check_pass_format=False, check_single_pass=False,
                        check_bin_out=False, check_osc=False):
@@ -309,24 +281,20 @@ with tabs[0]:
 
     if uploaded_files:
         all_test_rows, all_bin_rows, all_errors = [], [], []
-
+        
         for uploaded_file in uploaded_files:
-            filename = uploaded_file.name
-            content = uploaded_file.read().decode("latin-1").splitlines()
+            df_test, df_sort = decode_mtm_file(uploaded_file)
 
-            df = decode_test_plan(content, filename)
-            bin_rows = decode_sort_plan(content, filename)
-
-            if df.empty:
-                all_errors.append(f"{filename}: No test data found.")
+            if df_test.empty:
+                all_errors.append(f"{uploaded_file.name}: No test data found.")
                 continue
 
-            all_test_rows.extend(df.values.tolist())
-            all_bin_rows.extend(bin_rows)
-            all_errors.extend(validate_test_plan(df, filename, settings))
+            all_test_rows.extend(df_test.values.tolist())
+            all_bin_rows.extend([(uploaded_file.name, ' '.join(row[1:-1].astype(str))) for _, row in df_sort.iterrows()])
 
+            all_errors.extend(validate_test_plan(df_test, uploaded_file.name, settings))
             if settings["check_coverage"]:
-                all_errors.extend(check_sort_coverage(df, bin_rows, filename))
+                all_errors.extend(check_sort_coverage(df_test, [(uploaded_file.name, ' '.join(row[1:-1].astype(str))) for _, row in df_sort.iterrows()], uploaded_file.name))        
 
         # Sort Plan validations
         all_errors.extend(validate_sort_plan(
