@@ -342,26 +342,16 @@ with tabs[0]:
                                "test_plan.csv", "text/csv")
 
         # Sort Plan Table
-        if all_bin_rows:
-            sort_data, max_codes = [], 0
-            for fname, line in all_bin_rows:
-                parsed = parse_sort_line_dynamic(line)
-                if parsed:
-                    sort_data.append([fname] + parsed)
-                    max_codes = max(max_codes, len(parsed) - 4)
-            base_cols = ['Filename', 'Bin', 'Result', 'Logic']
-            code_cols = [f"Code_{i}" for i in range(max_codes)]
-            final_cols = base_cols + code_cols + ['Item']
-            padded = []
-            for row in sort_data:
-                codes = row[4:-1]
-                padded_codes = codes + [''] * (max_codes - len(codes))
-                padded.append(row[:4] + padded_codes + [row[-1]])
-            df_sort = pd.DataFrame(padded, columns=final_cols)
+        if not df_sort.empty:
             st.subheader("📋 Aggregated Sort Plan")
             st.dataframe(df_sort, use_container_width=True)
-            st.download_button("📥 Download Sort Plan CSV", df_sort.to_csv(index=False).encode("utf-8"),
-                               "sort_plan.csv", "text/csv")
+
+            st.download_button(
+                label="📥 Download Sort Plan CSV",
+                data=df_sort.to_csv(index=False).encode("utf-8"),
+                file_name="sort_plan.csv",
+                mime="text/csv"
+            )
 
 # -------- Tab 2: Spec Editor --------
 with tabs[1]:
