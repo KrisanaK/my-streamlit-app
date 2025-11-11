@@ -335,11 +335,20 @@ with tabs[0]:
 
         # Test Plan Table
         if all_test_rows:
-            df_test = pd.DataFrame(all_test_rows, columns=df.columns)
+            # Use the first row to determine number of columns
+            num_cols = len(all_test_rows[0])
+            columns = [f"Col_{i}" for i in range(num_cols)]
+            df_test = pd.DataFrame(all_test_rows, columns=columns)
+
             st.subheader("📊 Aggregated Test Plan")
             st.dataframe(df_test, use_container_width=True)
-            st.download_button("📥 Download Test Plan CSV", df_test.to_csv(index=False).encode("utf-8"),
-                               "test_plan.csv", "text/csv")
+
+            st.download_button(
+                label="📥 Download Test Plan CSV",
+                data=df_test.to_csv(index=False).encode("utf-8"),
+                file_name="test_plan.csv",
+                mime="text/csv"
+            )
 
         # Sort Plan Table
         if not df_sort.empty:
