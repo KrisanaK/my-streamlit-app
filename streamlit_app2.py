@@ -128,34 +128,52 @@ def validate_against_spec(df_test, product_spec_df, filename):
 
 def validate_sort_plan(bin_lines, required_bin=None, check_pass_format=False, check_single_pass=False,
                        check_bin_out=False, check_osc=False):
+    """
+    Validate the sort plan directly from raw bin_lines (list of tuples: (filename, line))
+    """
     errors = []
     pass_lines = []
     has_bin_out = False
     has_osc = False
 
     for filename, line in bin_lines:
-        parsed = parse_sort_line_dynamic(line)
-        if not parsed:
+        # --- Parse sort line dynamically (merged from parse_sort_line_dynamic) ---
+        multi_word_tokens = {'ALL PASS': 'ALL_PASS', 'BIN OUT': 'BIN_OUT', 'BIN IN': 'BIN_IN'}
+        try:
+            prefix, item = (line.split('^', 1) + [""])[:2]
+            item = item.strip()
+
+            for full, token in multi_word_tokens.items():
+                prefix = prefix.replace(full, token)
+
+            tokens = prefix.strip().split()
+            tokens = [t.replace('_', ' ') if t in multi_word_tokens.values() else t for t in tokens]
+
+            if len(tokens) < 3:
+                continue
+
+            bin_no, result, logic, *codes = tokens
+        except Exception:
             continue
+        # -----------------------------------------------------------------------
 
-        bin_no = parsed[0].strip()
-        result = parsed[1].strip().upper()
-        logic = parsed[2].strip().upper()
-        codes = parsed[3:-1]
-        code_0 = codes[0].strip().upper() if codes else ""
+        result_upper = result.strip().upper()
+        logic_upper = logic.strip().upper()
+        codes_upper = [c.strip().upper() for c in codes]
+        code_0 = codes_upper[0] if codes_upper else ""
 
-        if check_pass_format and result == "PASS":
-            if logic != "AND" or code_0 != "ALL PASS" or bin_no != required_bin:
+        if check_pass_format and result_upper == "PASS":
+            if logic_upper != "AND" or code_0 != "ALL PASS" or bin_no != required_bin:
                 errors.append(
                     f"{filename}: Invalid PASS bin (BIN={bin_no}). Expected BIN={required_bin}, Logic='AND', Code_0='ALL PASS'."
                 )
 
-        if result == "PASS":
+        if result_upper == "PASS":
             pass_lines.append((filename, bin_no, line))
 
-        if check_bin_out and any(code.upper() == "BIN OUT" for code in codes):
+        if check_bin_out and "BIN OUT" in codes_upper:
             has_bin_out = True
-        if check_osc and any(code.upper() == "OSC" for code in codes):
+        if check_osc and "OSC" in codes_upper:
             has_osc = True
 
     if check_single_pass and len(pass_lines) > 1:
@@ -163,12 +181,14 @@ def validate_sort_plan(bin_lines, required_bin=None, check_pass_format=False, ch
             f"❌ Multiple PASS bins found ({len(pass_lines)}). Expected only one:\n" +
             "\n".join([f"{f}: {l}" for f, _, l in pass_lines])
         )
+
     if check_bin_out and not has_bin_out:
         errors.append("❌ Sort Plan missing 'BIN OUT'.")
     if check_osc and not has_osc:
         errors.append("❌ Sort Plan missing 'OSC'.")
 
     return errors
+
 
 
 def validate_test_plan(df, filename, settings):
